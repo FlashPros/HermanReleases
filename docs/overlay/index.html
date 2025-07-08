@@ -228,6 +228,73 @@
     </div>
 
     <script>
+        // Auto-refresh settings
+        const AUTO_REFRESH_INTERVAL = 600000;  // 10 minutes
+        const MIN_REFRESH_INTERVAL = 300000;   // 5 minutes (if everything is good)
+        const MAX_REFRESH_INTERVAL = 1800000;  // 30 minutes (maximum backoff)
+        let currentRefreshInterval = AUTO_REFRESH_INTERVAL;
+        let lastModified = null;
+        let updateCheckTimer = null;
+        let consecutiveErrors = 0;
+
+        // Function to check for updates
+        async function checkForUpdates() {
+            try {
+                const response = await fetch(window.location.href, { 
+                    method: 'HEAD',
+                    cache: 'no-store'
+                });
+
+                // Handle rate limiting
+                if (response.status === 429) {
+                    console.log('Rate limit hit, backing off...');
+                    increaseRefreshInterval();
+                    return;
+                }
+
+                // Reset interval if successful
+                if (response.ok) {
+                    consecutiveErrors = 0;
+                    currentRefreshInterval = AUTO_REFRESH_INTERVAL;
+                }
+
+                const currentModified = response.headers.get('last-modified');
+                
+                if (lastModified && lastModified !== currentModified) {
+                    console.log('Update detected, refreshing page...');
+                    window.location.reload();
+                }
+                
+                lastModified = currentModified;
+            } catch (error) {
+                console.error('Error checking for updates:', error);
+                increaseRefreshInterval();
+            }
+
+            // Schedule next check
+            scheduleNextCheck();
+        }
+
+        // Function to increase refresh interval with exponential backoff
+        function increaseRefreshInterval() {
+            consecutiveErrors++;
+            // More aggressive backoff but shorter maximum
+            const backoffMultiplier = Math.min(Math.pow(2, consecutiveErrors), 3); // Max 3x longer
+            currentRefreshInterval = Math.min(AUTO_REFRESH_INTERVAL * backoffMultiplier, MAX_REFRESH_INTERVAL);
+            console.log(`Increased refresh interval to ${currentRefreshInterval/1000} seconds`);
+        }
+
+        // Function to schedule next check
+        function scheduleNextCheck() {
+            if (updateCheckTimer) {
+                clearTimeout(updateCheckTimer);
+            }
+            updateCheckTimer = setTimeout(checkForUpdates, currentRefreshInterval);
+        }
+
+        // Initial check and setup
+        checkForUpdates();
+
         // WebSocket connection
         let ws = null;
         let reconnectAttempts = 0;
