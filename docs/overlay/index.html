@@ -30,6 +30,8 @@
             transform: translateY(20px);
             transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
             z-index: 1000;
+            padding: 10px;
+            border-radius: 8px;
         }
 
         #social-widget.visible {
@@ -37,9 +39,10 @@
             transform: translateY(0);
         }
 
-        #platformIcon {
+        .platform-icon {
             width: 32px;
             height: 32px;
+            object-fit: contain;
             background: none !important;
         }
 
@@ -190,12 +193,6 @@
                 0 0 10px rgba(225, 48, 108, 0.8);
         }
 
-        .platform-icon {
-            width: 32px;
-            height: 32px;
-            fill: currentColor;
-        }
-
         .twitch-theme .platform-icon { color: #9146FF; }
         .youtube-theme .platform-icon { color: #FF0000; }
         .tiktok-theme .platform-icon { color: #25F4EE; }
@@ -293,9 +290,14 @@
 
                 switch (data.event) {
                     case 'SOCIAL_LINKS_UPDATED':
-                        socialMediaQueue = data.data;
-                        if (!isRotating) {
-                            startRotation();
+                        if (data.data && Array.isArray(data.data)) {
+                            socialMediaQueue = data.data.map(link => ({
+                                platform: link.platform.toLowerCase(),
+                                text: link.display_text || link.call_to_action
+                            }));
+                            if (!isRotating) {
+                                startRotation();
+                            }
                         }
                         break;
 
@@ -377,22 +379,34 @@
             const platformIcon = document.getElementById('platformIcon');
             const displayText = document.getElementById('displayText');
 
-            // Remove all theme classes
-            socialWidget.className = '';
+            // Remove all theme classes and add new theme
+            socialWidget.className = 'social-widget';  // Reset to base class
             socialWidget.classList.add(`${platform}-theme`);
 
-            // Set the icon
-            platformIcon.src = `images/${platform}-icon.png`;
+            // Set the icon - make sure platform is lowercase and handle all cases
+            const iconName = platform.toLowerCase();
+            platformIcon.src = `images/${iconName}-icon.png`;
+            platformIcon.alt = `${platform} Icon`;
+            platformIcon.className = 'platform-icon';
             
             // Set the text
             displayText.textContent = text;
 
             // Show the widget
             socialWidget.classList.add('visible');
+
+            // Log for debugging
+            console.log('Updating social widget:', {
+                platform,
+                iconPath: platformIcon.src,
+                text,
+                classes: socialWidget.className
+            });
         }
 
         function hideSocialWidget() {
-            document.getElementById('social-widget').classList.remove('visible');
+            const socialWidget = document.getElementById('social-widget');
+            socialWidget.classList.remove('visible');
         }
 
         function startRotation() {
@@ -416,7 +430,7 @@
             }
 
             const current = socialMediaQueue[currentSocialIndex];
-            updateSocialWidget(current.platform.toLowerCase(), current.text);
+            updateSocialWidget(current.platform, current.text);
 
             // Schedule hide
             hideTimeout = setTimeout(() => {
@@ -434,4 +448,4 @@
         connectWebSocket();
     </script>
 </body>
-</html>
+</html> 
