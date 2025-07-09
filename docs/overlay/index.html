@@ -21,13 +21,13 @@
         /* Social Media Widget */
         #social-widget {
             position: fixed;
-            bottom: 20px;
+            top: 20px;
             right: 20px;
             display: flex;
             align-items: center;
             gap: 12px;
             opacity: 0;
-            transform: translateY(20px);
+            transform: translateY(-20px);
             transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
             z-index: 1000;
             padding: 10px;
@@ -59,7 +59,7 @@
         /* Sub Train Widget */
         #subtrain {
             position: fixed;
-            top: 20px;
+            top: 80px; /* Moved down to make room for social widget */
             right: 20px;
             background: rgba(0, 0, 0, 0.8) !important;
             padding: 15px;
@@ -333,7 +333,8 @@
                         'GIVEAWAY_START',
                         'GIVEAWAY_UPDATE',
                         'GIVEAWAY_END',
-                        'INTRO_NOTIFICATION'
+                        'INTRO_NOTIFICATION',
+                        'force_refresh'
                     ]
                 }));
             };
@@ -356,6 +357,11 @@
                 console.log('Received message:', data);
 
                 switch (data.event) {
+                    case 'force_refresh':
+                        console.log('Received force refresh command, reloading page...');
+                        window.location.reload();
+                        break;
+
                     case 'SOCIAL_LINKS_UPDATED':
                         if (data.data && Array.isArray(data.data)) {
                             socialMediaQueue = data.data.map(link => ({
