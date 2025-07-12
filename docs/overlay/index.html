@@ -21,13 +21,13 @@
         /* Social Media Widget */
         #social-widget {
             position: fixed;
-            bottom: 20px; /* Changed from top to bottom */
-            left: 20px; /* Changed from right to left */
+            bottom: 20px;
+            left: 50%; /* Changed from left: 20px to center horizontally */
+            transform: translateX(-50%) translateY(20px); /* Added translateX for centering */
             display: flex;
             align-items: center;
             gap: 12px;
             opacity: 0;
-            transform: translateY(20px); /* Changed direction since we're at bottom */
             transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
             z-index: 1000;
             padding: 10px;
@@ -36,7 +36,7 @@
 
         #social-widget.visible {
             opacity: 1;
-            transform: translateY(0);
+            transform: translateX(-50%) translateY(0); /* Updated to maintain horizontal centering */
         }
 
         .platform-icon {
