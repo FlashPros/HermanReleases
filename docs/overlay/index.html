@@ -198,9 +198,41 @@
         .youtube-theme .platform-icon { color: #FF0000; }
         .tiktok-theme .platform-icon { color: #25F4EE; }
         .instagram-theme .platform-icon { color: #E1306C; }
+        
+        /* Connection Status Indicator */
+        #connection-status {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+            z-index: 2000;
+            opacity: 0.8;
+            transition: all 0.3s ease;
+        }
+        
+        #connection-status.connecting {
+            background-color: #ffa500;
+            color: #ffffff;
+        }
+        
+        #connection-status.connected {
+            background-color: #28a745;
+            color: #ffffff;
+        }
+        
+        #connection-status.disconnected {
+            background-color: #dc3545;
+            color: #ffffff;
+        }
     </style>
 </head>
 <body>
+    <!-- Connection Status Indicator -->
+    <div id="connection-status" class="connecting">Connecting...</div>
+    
     <!-- Social Media Widget -->
     <div id="social-widget">
         <img id="platformIcon" class="platform-icon" src="" alt="Platform Icon">
@@ -299,9 +331,33 @@
         // WebSocket connection
         let ws = null;
         let reconnectAttempts = 0;
-        const maxReconnectAttempts = 5;
         const defaultPorts = [1337, 1338]; // Release and Debug ports
         let currentPortIndex = 0;
+        let reconnectDelay = 1000; // Start with 1 second delay
+        const maxReconnectDelay = 30000; // Maximum 30 seconds between attempts
+
+        // Connection status management
+        let statusHideTimeout = null;
+        
+        function updateConnectionStatus(status, message) {
+            const statusElement = document.getElementById('connection-status');
+            statusElement.className = status;
+            statusElement.textContent = message;
+            statusElement.style.display = 'block';
+            
+            // Clear any existing timeout
+            if (statusHideTimeout) {
+                clearTimeout(statusHideTimeout);
+                statusHideTimeout = null;
+            }
+            
+            // Hide the status indicator after 10 seconds when connected
+            if (status === 'connected') {
+                statusHideTimeout = setTimeout(() => {
+                    statusElement.style.display = 'none';
+                }, 10000);
+            }
+        }
 
         // Social media rotation settings
         const DISPLAY_DURATION = 8000;  // 8 seconds display time
@@ -316,11 +372,14 @@
 
         function connectWebSocket() {
             const port = defaultPorts[currentPortIndex];
+            updateConnectionStatus('connecting', `Connecting to port ${port}...`);
             ws = new WebSocket(`ws://localhost:${port}?token=Hermanapitest`);
 
             ws.onopen = () => {
                 console.log('Connected to WebSocket on port', port);
+                updateConnectionStatus('connected', 'Connected');
                 reconnectAttempts = 0;
+                reconnectDelay = 1000; // Reset delay on successful connection
                 
                 // Subscribe to events
                 ws.send(JSON.stringify({
@@ -342,15 +401,27 @@
 
             ws.onclose = () => {
                 console.log('WebSocket connection closed');
-                if (reconnectAttempts < maxReconnectAttempts) {
-                    reconnectAttempts++;
-                    currentPortIndex = (currentPortIndex + 1) % defaultPorts.length;
-                    setTimeout(connectWebSocket, 1000);
-                }
+                reconnectAttempts++;
+                currentPortIndex = (currentPortIndex + 1) % defaultPorts.length;
+                
+                // Update status to show reconnection attempt
+                updateConnectionStatus('connecting', `Reconnecting (attempt ${reconnectAttempts})...`);
+                
+                // Use exponential backoff for reconnection attempts
+                console.log(`Attempting to reconnect (attempt ${reconnectAttempts}) in ${reconnectDelay}ms...`);
+                setTimeout(connectWebSocket, reconnectDelay);
+                
+                // Increase delay for next attempt (exponential backoff)
+                reconnectDelay = Math.min(reconnectDelay * 1.5, maxReconnectDelay);
             };
 
             ws.onerror = (error) => {
                 console.error('WebSocket error:', error);
+                updateConnectionStatus('disconnected', 'Connection error');
+                // Close the connection to trigger onclose handler for reconnection
+                if (ws && ws.readyState !== WebSocket.CLOSED) {
+                    ws.close();
+                }
             };
 
             ws.onmessage = (event) => {
