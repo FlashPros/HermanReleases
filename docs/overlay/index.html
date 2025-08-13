@@ -389,7 +389,9 @@
                         'SOCIAL_LINKS_UPDATED',
                         'TEST_EVENT',
                         'START_ROTATION',
-                        'SUBTRAIN_UPDATE',
+                        'SUBTRAIN_STARTED',
+                        'SUBTRAIN_UPDATED',
+                        'SUBTRAIN_ENDED',
                         'GIVEAWAY_START',
                         'GIVEAWAY_UPDATE',
                         'GIVEAWAY_END',
@@ -452,8 +454,16 @@
                         }
                         break;
 
-                    case 'SUBTRAIN_UPDATE':
+                    case 'SUBTRAIN_STARTED':
+                        showSubTrain(data.data);
+                        break;
+
+                    case 'SUBTRAIN_UPDATED':
                         updateSubTrain(data.data);
+                        break;
+
+                    case 'SUBTRAIN_ENDED':
+                        hideSubTrain(data.data);
                         break;
 
                     case 'GIVEAWAY_START':
@@ -475,18 +485,29 @@
             };
         }
 
-        function updateSubTrain(data) {
-            document.getElementById('totalSubs').textContent = data.totalSubs;
-            document.getElementById('giftedSubs').textContent = data.giftedSubs;
-            document.getElementById('regularSubs').textContent = data.regularSubs;
-            document.getElementById('highestSubCount').textContent = data.highestCount;
+        function showSubTrain(data) {
+            console.log('Subtrain started:', data);
+            document.getElementById('totalSubs').textContent = data.total_subscriptions || 0;
+            document.getElementById('giftedSubs').textContent = data.gift_subs || 0;
+            document.getElementById('regularSubs').textContent = data.regular_subs || 0;
+            document.getElementById('highestSubCount').textContent = data.highest_count || 0;
             
             const subtrainElement = document.getElementById('subtrain');
-            if (data.isVisible) {
-                subtrainElement.classList.add('visible');
-            } else {
-                subtrainElement.classList.remove('visible');
-            }
+            subtrainElement.classList.add('visible');
+        }
+
+        function updateSubTrain(data) {
+            console.log('Subtrain updated:', data);
+            document.getElementById('totalSubs').textContent = data.total_subscriptions || 0;
+            document.getElementById('giftedSubs').textContent = data.gift_subs || 0;
+            document.getElementById('regularSubs').textContent = data.regular_subs || 0;
+            document.getElementById('highestSubCount').textContent = data.highest_count || 0;
+        }
+
+        function hideSubTrain(data) {
+            console.log('Subtrain ended:', data);
+            const subtrainElement = document.getElementById('subtrain');
+            subtrainElement.classList.remove('visible');
         }
 
         function showGiveaway(data) {
