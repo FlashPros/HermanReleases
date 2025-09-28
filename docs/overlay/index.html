@@ -437,6 +437,7 @@
 
         // Dashboard auto-hide/show settings
         let dashboardDisplayDuration = 30000; // Default 30 seconds
+        let dashboardHideDuration = 30000; // Default 30 seconds
         let dashboardTimeout = null;
         let isDashboardVisible = false;
         let dashboardData = null;
@@ -696,10 +697,14 @@
         function updateDashboard(data) {
             console.log('Dashboard update received:', data);
             
-            // Update dashboard display duration if provided (convert seconds to milliseconds)
+            // Update dashboard durations if provided (convert seconds to milliseconds)
             if (data.overlayDisplayDuration) {
                 dashboardDisplayDuration = data.overlayDisplayDuration * 1000;
                 console.log(`Dashboard display duration updated to ${dashboardDisplayDuration}ms`);
+            }
+            if (data.overlayHideDuration) {
+                dashboardHideDuration = data.overlayHideDuration * 1000;
+                console.log(`Dashboard hide duration updated to ${dashboardHideDuration}ms`);
             }
             
             const dashboardElement = document.getElementById('dashboard');
@@ -760,12 +765,12 @@
             dashboardElement.classList.add('hidden');
             isDashboardVisible = false;
             
-            // Schedule show again after same duration (creates equal on/off cycle)
+            // Schedule show again after hide duration (allows different show/hide timings)
             dashboardTimeout = setTimeout(() => {
                 if (dashboardData) {
                     startDashboardCycle();
                 }
-            }, dashboardDisplayDuration);
+            }, dashboardHideDuration);
         }
 
         function stopDashboardCycle() {
