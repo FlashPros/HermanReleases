@@ -831,8 +831,48 @@
                 dashboardElement.appendChild(tileElement);
             });
             
-            // Start the auto-hide/show cycle
-            startDashboardCycle();
+            // Only start the auto-hide/show cycle if no cycle is currently running
+            if (!dashboardTimeout && !isDashboardVisible) {
+                console.log('Starting new dashboard cycle');
+                startDashboardCycle();
+            } else if (dashboardTimeout) {
+                console.log('Dashboard cycle already running, updating data without restarting cycle');
+                // Update the tile data without restarting the cycle
+                updateDashboardTiles(data.statTiles);
+            } else {
+                console.log('Dashboard is currently visible, updating data without restarting cycle');
+                // Update the tile data without restarting the cycle
+                updateDashboardTiles(data.statTiles);
+            }
+        }
+
+        function updateDashboardTiles(statTiles) {
+            const dashboardElement = document.getElementById('dashboard');
+            dashboardElement.innerHTML = ''; // Clear existing tiles
+            
+            if (!statTiles || statTiles.length === 0) {
+                console.log('No tiles to update');
+                return;
+            }
+            
+            // Create tiles for each stat
+            statTiles.forEach(tile => {
+                const tileElement = document.createElement('div');
+                tileElement.className = 'dashboard-tile';
+                tileElement.style.borderLeftColor = tile.color || '#9146ff';
+                
+                tileElement.innerHTML = `
+                    <div class="icon">${tile.icon || '📊'}</div>
+                    <div class="content">
+                        <div class="title">${tile.title}</div>
+                        <div class="value">${tile.value}</div>
+                    </div>
+                `;
+                
+                dashboardElement.appendChild(tileElement);
+            });
+            
+            console.log(`Updated ${statTiles.length} dashboard tiles without restarting cycle`);
         }
 
         function startDashboardCycle() {
