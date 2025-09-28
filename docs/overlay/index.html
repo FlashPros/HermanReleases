@@ -517,6 +517,7 @@
         let dashboardHideDuration = 30000; // Default 30 seconds
         let dashboardTimeout = null;
         let isDashboardVisible = false;
+        let isDashboardCycleActive = false; // Track if a cycle is currently running
         let dashboardData = null;
 
         function connectWebSocket() {
@@ -832,15 +833,11 @@
             });
             
             // Only start the auto-hide/show cycle if no cycle is currently running
-            if (!dashboardTimeout && !isDashboardVisible) {
+            if (!isDashboardCycleActive) {
                 console.log('Starting new dashboard cycle');
                 startDashboardCycle();
-            } else if (dashboardTimeout) {
-                console.log('Dashboard cycle already running, updating data without restarting cycle');
-                // Update the tile data without restarting the cycle
-                updateDashboardTiles(data.statTiles);
             } else {
-                console.log('Dashboard is currently visible, updating data without restarting cycle');
+                console.log('Dashboard cycle already running, updating data without restarting cycle');
                 // Update the tile data without restarting the cycle
                 updateDashboardTiles(data.statTiles);
             }
@@ -882,6 +879,9 @@
             
             const dashboardElement = document.getElementById('dashboard');
             
+            // Mark cycle as active
+            isDashboardCycleActive = true;
+            
             // Show dashboard
             dashboardElement.classList.add('visible');
             dashboardElement.classList.remove('hidden');
@@ -905,6 +905,10 @@
             dashboardTimeout = setTimeout(() => {
                 if (dashboardData) {
                     startDashboardCycle();
+                } else {
+                    // No more data, stop the cycle
+                    isDashboardCycleActive = false;
+                    console.log('Dashboard cycle completed - no more data');
                 }
             }, dashboardHideDuration);
         }
@@ -920,6 +924,7 @@
             
             // Reset state
             isDashboardVisible = false;
+            isDashboardCycleActive = false;
             dashboardData = null;
             
             // Ensure dashboard is hidden
