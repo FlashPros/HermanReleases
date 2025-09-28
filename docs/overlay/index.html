@@ -141,6 +141,72 @@
             z-index: 1000;
         }
 
+        /* Dashboard position classes */
+        #dashboard.position-top-left {
+            top: 20px;
+            left: 20px;
+            flex-direction: column;
+        }
+
+        #dashboard.position-top-center {
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            flex-direction: column;
+        }
+
+        #dashboard.position-top-right {
+            top: 20px;
+            right: 20px;
+            left: auto;
+            flex-direction: column;
+        }
+
+        #dashboard.position-center-left {
+            top: 50%;
+            left: 20px;
+            transform: translateY(-50%);
+            flex-direction: column;
+        }
+
+        #dashboard.position-center {
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            flex-direction: column;
+        }
+
+        #dashboard.position-center-right {
+            top: 50%;
+            right: 20px;
+            left: auto;
+            transform: translateY(-50%);
+            flex-direction: column;
+        }
+
+        #dashboard.position-bottom-left {
+            bottom: 20px;
+            left: 20px;
+            top: auto;
+            flex-direction: column-reverse; /* Stack up instead of down */
+        }
+
+        #dashboard.position-bottom-center {
+            bottom: 20px;
+            left: 50%;
+            top: auto;
+            transform: translateX(-50%);
+            flex-direction: column-reverse; /* Stack up instead of down */
+        }
+
+        #dashboard.position-bottom-right {
+            bottom: 20px;
+            right: 20px;
+            left: auto;
+            top: auto;
+            flex-direction: column-reverse; /* Stack up instead of down */
+        }
+
         .dashboard-tile {
             background: none;
             color: white;
@@ -711,14 +777,30 @@
             // Update dashboard durations if provided (convert seconds to milliseconds)
             if (data.overlayDisplayDuration) {
                 dashboardDisplayDuration = data.overlayDisplayDuration * 1000;
-                console.log(`Dashboard display duration updated to ${dashboardDisplayDuration}ms`);
+                console.log(`Dashboard display duration updated to ${dashboardDisplayDuration}ms (${data.overlayDisplayDuration}s)`);
             }
             if (data.overlayHideDuration) {
                 dashboardHideDuration = data.overlayHideDuration * 1000;
-                console.log(`Dashboard hide duration updated to ${dashboardHideDuration}ms`);
+                console.log(`Dashboard hide duration updated to ${dashboardHideDuration}ms (${data.overlayHideDuration}s)`);
             }
             
+            // Log current duration settings for debugging
+            console.log(`Current overlay durations - Show: ${dashboardDisplayDuration}ms, Hide: ${dashboardHideDuration}ms`);
+            
             const dashboardElement = document.getElementById('dashboard');
+            
+            // Update position class
+            if (data.overlayPosition) {
+                // Remove all existing position classes
+                dashboardElement.classList.remove('position-top-left', 'position-top-center', 'position-top-right', 
+                    'position-center-left', 'position-center', 'position-center-right', 
+                    'position-bottom-left', 'position-bottom-center', 'position-bottom-right');
+                
+                // Add new position class
+                dashboardElement.classList.add(`position-${data.overlayPosition}`);
+                console.log(`Dashboard position updated to: ${data.overlayPosition}`);
+            }
+            
             dashboardElement.innerHTML = ''; // Clear existing tiles
             
             if (!data.statTiles || data.statTiles.length === 0) {
@@ -766,6 +848,7 @@
             isDashboardVisible = true;
             
             // Schedule hide after display duration
+            console.log(`Starting dashboard display for ${dashboardDisplayDuration}ms (${dashboardDisplayDuration/1000}s)`);
             dashboardTimeout = setTimeout(() => {
                 hideDashboard();
             }, dashboardDisplayDuration);
@@ -778,6 +861,7 @@
             isDashboardVisible = false;
             
             // Schedule show again after hide duration (allows different show/hide timings)
+            console.log(`Hiding dashboard for ${dashboardHideDuration}ms (${dashboardHideDuration/1000}s)`);
             dashboardTimeout = setTimeout(() => {
                 if (dashboardData) {
                     startDashboardCycle();
