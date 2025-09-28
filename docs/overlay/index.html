@@ -722,6 +722,7 @@
             dashboardElement.innerHTML = ''; // Clear existing tiles
             
             if (!data.statTiles || data.statTiles.length === 0) {
+                console.log('No tiles enabled - hiding dashboard and stopping cycle');
                 dashboardElement.classList.remove('visible');
                 dashboardElement.classList.add('hidden');
                 stopDashboardCycle();
@@ -785,12 +786,23 @@
         }
 
         function stopDashboardCycle() {
+            console.log('Stopping dashboard cycle and clearing all state');
+            
+            // Clear the timeout
             if (dashboardTimeout) {
                 clearTimeout(dashboardTimeout);
                 dashboardTimeout = null;
             }
+            
+            // Reset state
             isDashboardVisible = false;
             dashboardData = null;
+            
+            // Ensure dashboard is hidden
+            const dashboardElement = document.getElementById('dashboard');
+            dashboardElement.classList.remove('visible');
+            dashboardElement.classList.add('hidden');
+            dashboardElement.innerHTML = ''; // Clear any remaining content
         }
 
         function hideAllOverlayElements() {
