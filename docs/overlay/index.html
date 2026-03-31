@@ -265,6 +265,60 @@
             opacity: 0;
         }
 
+        /* Stat Ticker (one stat at a time) */
+        #stat-ticker {
+            position: fixed;
+            left: 35%;
+            top: 88%;
+            width: 30%;
+            min-height: 48px;
+            opacity: 0;
+            transition: opacity 0.35s ease-in-out;
+            z-index: 1000;
+            display: none;
+            pointer-events: none;
+        }
+
+        #stat-ticker.visible {
+            display: block;
+            opacity: 1;
+        }
+
+        #stat-ticker .dashboard-tile {
+            background: rgba(0, 0, 0, 0.75);
+            padding: 8px 12px;
+            border-radius: 8px;
+            border-left: 3px solid #9146ff;
+        }
+
+        /* Stat Popup (brief notification on value change) */
+        #stat-popup {
+            position: fixed;
+            left: 50%;
+            bottom: 120px;
+            transform: translateX(-50%) translateY(120%);
+            min-width: 220px;
+            max-width: 90vw;
+            opacity: 0;
+            transition: transform 0.45s ease-out, opacity 0.45s ease-out;
+            z-index: 10050;
+            display: none;
+            pointer-events: none;
+        }
+
+        #stat-popup.visible {
+            display: block;
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        #stat-popup .dashboard-tile {
+            background: linear-gradient(135deg, rgba(145, 70, 255, 0.95) 0%, rgba(100, 65, 164, 0.95) 100%);
+            padding: 12px 18px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+
         /* Intro Notification */
         #intro {
             position: fixed;
@@ -365,6 +419,7 @@
             color: #ffffff;
         }
     </style>
+    <script src="js/config.js"></script>
 </head>
 <body>
     <!-- Connection Status Indicator -->
@@ -400,6 +455,28 @@
     <!-- Dashboard Widget -->
     <div id="dashboard">
         <!-- Dashboard tiles will be dynamically added here -->
+    </div>
+
+    <!-- Stat Ticker (rotates Ticker-mode stats) -->
+    <div id="stat-ticker" aria-hidden="true">
+        <div class="dashboard-tile">
+            <div class="icon" id="stat-ticker-icon"></div>
+            <div class="content">
+                <div class="title" id="stat-ticker-title"></div>
+                <div class="value" id="stat-ticker-value"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stat Popup (Popup-mode value changes) -->
+    <div id="stat-popup" aria-hidden="true">
+        <div class="dashboard-tile">
+            <div class="icon" id="stat-popup-icon"></div>
+            <div class="content">
+                <div class="title" id="stat-popup-title"></div>
+                <div class="value" id="stat-popup-value"></div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -473,7 +550,7 @@
         // WebSocket connection
         let ws = null;
         let reconnectAttempts = 0;
-        const defaultPorts = [1337, 1338]; // Release and Debug ports
+        const defaultPorts = CONFIG.WS_LOCAL_PORTS;
         let currentPortIndex = 0;
         let reconnectDelay = 1000; // Start with 1 second delay
         const maxReconnectDelay = 30000; // Maximum 30 seconds between attempts
@@ -501,10 +578,10 @@
             }
         }
 
-        // Social media rotation settings
-        const DISPLAY_DURATION = 8000;  // 8 seconds display time
-        const HIDE_DURATION = 1500;     // 1.5 seconds transition time
-        const COMPLETE_CYCLE_PAUSE = 900000; // 15 minutes pause between cycles
+        // Social media rotation settings — values sourced from config.js
+        const DISPLAY_DURATION = CONFIG.DISPLAY_DURATION;
+        const HIDE_DURATION = CONFIG.HIDE_DURATION;
+        const COMPLETE_CYCLE_PAUSE = CONFIG.COMPLETE_CYCLE_PAUSE;
         let socialMediaQueue = [];
         let currentSocialIndex = 0;
         let isRotating = false;
@@ -517,13 +594,160 @@
         let dashboardHideDuration = 30000; // Default 30 seconds
         let dashboardTimeout = null;
         let isDashboardVisible = false;
-        let isDashboardCycleActive = false; // Track if a cycle is currently running
         let dashboardData = null;
+
+        // Stat ticker (rotates tickerStats)
+        let statTickerData = [];
+        let statTickerIndex = 0;
+        let statTickerRotationTimeout = null;
+        let statTickerActive = false;
+
+        // Stat popup queue (popupStats = value-change events from Herman)
+        let statPopupQueue = [];
+        let statPopupShowing = false;
+        let statPopupHideTimeout = null;
+        const STAT_POPUP_VISIBLE_MS = 4500;
+
+        // Maps overlay widget type names to element IDs
+        const WIDGET_ELEMENT_IDS = {
+            'Social': 'social-widget',
+            'SubTrain': 'subtrain',
+            'Giveaway': 'giveaway',
+            'DashboardStats': 'dashboard',
+            'Intro': 'intro',
+            'TipAlert': 'tip-alert',
+            'FollowAlert': 'follow-alert',
+            'SubAlert': 'sub-alert',
+            'RaidAlert': 'raid-alert',
+            'StatTicker': 'stat-ticker',
+            'StatPopup': 'stat-popup'
+        };
+
+        function stopStatTickerRotation() {
+            statTickerActive = false;
+            if (statTickerRotationTimeout) {
+                clearTimeout(statTickerRotationTimeout);
+                statTickerRotationTimeout = null;
+            }
+        }
+
+        function renderTickerTile(tile) {
+            const iconEl = document.getElementById('stat-ticker-icon');
+            const titleEl = document.getElementById('stat-ticker-title');
+            const valueEl = document.getElementById('stat-ticker-value');
+            if (iconEl) iconEl.textContent = tile.icon || '📊';
+            if (titleEl) titleEl.textContent = tile.title || '';
+            if (valueEl) valueEl.textContent = tile.value != null ? tile.value : '';
+            const inner = document.querySelector('#stat-ticker .dashboard-tile');
+            if (inner && tile.color) {
+                inner.style.borderLeftColor = tile.color;
+            }
+        }
+
+        function showNextTickerStat() {
+            if (!statTickerActive || !statTickerData.length) return;
+            const tile = statTickerData[statTickerIndex];
+            renderTickerTile(tile);
+            statTickerIndex = (statTickerIndex + 1) % statTickerData.length;
+            statTickerRotationTimeout = setTimeout(showNextTickerStat, dashboardDisplayDuration);
+        }
+
+        function updateStatTicker(tickerStats) {
+            stopStatTickerRotation();
+            const el = document.getElementById('stat-ticker');
+            if (!tickerStats || tickerStats.length === 0) {
+                if (el) {
+                    el.classList.remove('visible');
+                }
+                statTickerData = [];
+                return;
+            }
+            statTickerData = tickerStats.slice();
+            statTickerIndex = 0;
+            statTickerActive = true;
+            if (el) el.classList.add('visible');
+            showNextTickerStat();
+        }
+
+        function clearStatPopupTimers() {
+            if (statPopupHideTimeout) {
+                clearTimeout(statPopupHideTimeout);
+                statPopupHideTimeout = null;
+            }
+        }
+
+        function hideStatPopupElement() {
+            const el = document.getElementById('stat-popup');
+            if (el) el.classList.remove('visible');
+            statPopupShowing = false;
+            processStatPopupQueue();
+        }
+
+        function showStatPopupTile(tile) {
+            const iconEl = document.getElementById('stat-popup-icon');
+            const titleEl = document.getElementById('stat-popup-title');
+            const valueEl = document.getElementById('stat-popup-value');
+            if (iconEl) iconEl.textContent = tile.icon || '📊';
+            if (titleEl) titleEl.textContent = tile.title || '';
+            if (valueEl) valueEl.textContent = tile.value != null ? tile.value : '';
+            const inner = document.querySelector('#stat-popup .dashboard-tile');
+            if (inner && tile.color) {
+                inner.style.borderLeftColor = tile.color;
+            }
+            const el = document.getElementById('stat-popup');
+            if (!el) return;
+            el.classList.add('visible');
+            statPopupShowing = true;
+            clearStatPopupTimers();
+            statPopupHideTimeout = setTimeout(hideStatPopupElement, STAT_POPUP_VISIBLE_MS);
+        }
+
+        function processStatPopupQueue() {
+            if (statPopupShowing || statPopupQueue.length === 0) return;
+            const next = statPopupQueue.shift();
+            if (next) showStatPopupTile(next);
+        }
+
+        function enqueueStatPopups(popupStats) {
+            if (!popupStats || !popupStats.length) return;
+            for (const tile of popupStats) {
+                statPopupQueue.push(tile);
+            }
+            processStatPopupQueue();
+        }
+
+        function applyOverlayConfig(config) {
+            if (!config || typeof config !== 'object') return;
+            for (const [widgetType, layout] of Object.entries(config)) {
+                const elId = WIDGET_ELEMENT_IDS[widgetType];
+                if (!elId) continue;
+                const el = document.getElementById(elId);
+                if (!el) continue;
+                const x = (layout.x ?? 0) * 100;
+                const y = (layout.y ?? 0) * 100;
+                const w = (layout.width ?? 0.2) * 100;
+                const h = (layout.height ?? 0.1) * 100;
+                el.style.position = 'fixed';
+                el.style.left = x + '%';
+                el.style.top = y + '%';
+                el.style.right = '';
+                el.style.bottom = '';
+                el.style.transform = '';
+                el.style.width = w + '%';
+                el.style.height = h + '%';
+                el.style.minWidth = '';
+                el.style.opacity = layout.opacity ?? 1;
+                el.style.zIndex = layout.zIndex ?? 10;
+                if (layout.displayDuration != null) el.dataset.displayDuration = layout.displayDuration;
+                if (layout.hideDuration != null) el.dataset.hideDuration = layout.hideDuration;
+            }
+            console.log('Overlay config applied');
+        }
 
         function connectWebSocket() {
             const port = defaultPorts[currentPortIndex];
             updateConnectionStatus('connecting', `Connecting to port ${port}...`);
-            ws = new WebSocket(`ws://localhost:${port}?token=Hermanapitest`);
+            ws = new WebSocket(`ws://localhost:${port}?token=${CONFIG.WS_DEFAULT_TOKEN}`);
 
             ws.onopen = () => {
                 console.log('Connected to WebSocket on port', port);
@@ -534,6 +758,7 @@
                 // Subscribe to events
                 ws.send(JSON.stringify({
                     subscribe: [
+                        'OVERLAY_CONFIG',
                         'WIDGET_UPDATE',
                         'WIDGET_VISIBILITY',
                         'SOCIAL_LINKS_UPDATED',
@@ -546,6 +771,7 @@
                         'GIVEAWAY_UPDATE',
                         'GIVEAWAY_END',
                         'INTRO_NOTIFICATION',
+                        'DASHBOARD_UPDATE',
                         'force_refresh'
                     ]
                 }));
@@ -589,6 +815,10 @@
                 console.log('Received message:', data);
 
                 switch (data.event) {
+                    case 'OVERLAY_CONFIG':
+                        applyOverlayConfig(data.data);
+                        break;
+
                     case 'force_refresh':
                         console.log('Received force refresh command, reloading page...');
                         window.location.reload();
@@ -778,15 +1008,18 @@
             // Update dashboard durations if provided (convert seconds to milliseconds)
             if (data.overlayDisplayDuration) {
                 dashboardDisplayDuration = data.overlayDisplayDuration * 1000;
-                console.log(`Dashboard display duration updated to ${dashboardDisplayDuration}ms (${data.overlayDisplayDuration}s)`);
+                console.log(`Dashboard display duration updated to ${dashboardDisplayDuration}ms`);
             }
             if (data.overlayHideDuration) {
                 dashboardHideDuration = data.overlayHideDuration * 1000;
-                console.log(`Dashboard hide duration updated to ${dashboardHideDuration}ms (${data.overlayHideDuration}s)`);
+                console.log(`Dashboard hide duration updated to ${dashboardHideDuration}ms`);
             }
-            
-            // Log current duration settings for debugging
-            console.log(`Current overlay durations - Show: ${dashboardDisplayDuration}ms, Hide: ${dashboardHideDuration}ms`);
+
+            // Ticker-mode stats (uses dashboardDisplayDuration for each rotation step)
+            updateStatTicker(Array.isArray(data.tickerStats) ? data.tickerStats : []);
+
+            // Popup-mode changes (Herman sends only tiles whose value changed since last broadcast)
+            enqueueStatPopups(Array.isArray(data.popupStats) ? data.popupStats : []);
             
             const dashboardElement = document.getElementById('dashboard');
             
@@ -805,17 +1038,18 @@
             dashboardElement.innerHTML = ''; // Clear existing tiles
             
             if (!data.statTiles || data.statTiles.length === 0) {
-                console.log('No tiles enabled - hiding dashboard and stopping cycle');
+                console.log('No group strip tiles - hiding dashboard strip and stopping cycle');
                 dashboardElement.classList.remove('visible');
                 dashboardElement.classList.add('hidden');
                 stopDashboardCycle();
+                dashboardData = null;
                 return;
             }
             
             // Store dashboard data for cycling
             dashboardData = data;
             
-            // Create tiles for each stat
+            // Create tiles for each stat (Group mode strip)
             data.statTiles.forEach(tile => {
                 const tileElement = document.createElement('div');
                 tileElement.className = 'dashboard-tile';
@@ -832,44 +1066,8 @@
                 dashboardElement.appendChild(tileElement);
             });
             
-            // Only start the auto-hide/show cycle if no cycle is currently running
-            if (!isDashboardCycleActive) {
-                console.log('Starting new dashboard cycle');
-                startDashboardCycle();
-            } else {
-                console.log('Dashboard cycle already running, updating data without restarting cycle');
-                // Update the tile data without restarting the cycle
-                updateDashboardTiles(data.statTiles);
-            }
-        }
-
-        function updateDashboardTiles(statTiles) {
-            const dashboardElement = document.getElementById('dashboard');
-            dashboardElement.innerHTML = ''; // Clear existing tiles
-            
-            if (!statTiles || statTiles.length === 0) {
-                console.log('No tiles to update');
-                return;
-            }
-            
-            // Create tiles for each stat
-            statTiles.forEach(tile => {
-                const tileElement = document.createElement('div');
-                tileElement.className = 'dashboard-tile';
-                tileElement.style.borderLeftColor = tile.color || '#9146ff';
-                
-                tileElement.innerHTML = `
-                    <div class="icon">${tile.icon || '📊'}</div>
-                    <div class="content">
-                        <div class="title">${tile.title}</div>
-                        <div class="value">${tile.value}</div>
-                    </div>
-                `;
-                
-                dashboardElement.appendChild(tileElement);
-            });
-            
-            console.log(`Updated ${statTiles.length} dashboard tiles without restarting cycle`);
+            // Start the auto-hide/show cycle
+            startDashboardCycle();
         }
 
         function startDashboardCycle() {
@@ -879,16 +1077,12 @@
             
             const dashboardElement = document.getElementById('dashboard');
             
-            // Mark cycle as active
-            isDashboardCycleActive = true;
-            
             // Show dashboard
             dashboardElement.classList.add('visible');
             dashboardElement.classList.remove('hidden');
             isDashboardVisible = true;
             
             // Schedule hide after display duration
-            console.log(`Starting dashboard display for ${dashboardDisplayDuration}ms (${dashboardDisplayDuration/1000}s)`);
             dashboardTimeout = setTimeout(() => {
                 hideDashboard();
             }, dashboardDisplayDuration);
@@ -901,14 +1095,9 @@
             isDashboardVisible = false;
             
             // Schedule show again after hide duration (allows different show/hide timings)
-            console.log(`Hiding dashboard for ${dashboardHideDuration}ms (${dashboardHideDuration/1000}s)`);
             dashboardTimeout = setTimeout(() => {
                 if (dashboardData) {
                     startDashboardCycle();
-                } else {
-                    // No more data, stop the cycle
-                    isDashboardCycleActive = false;
-                    console.log('Dashboard cycle completed - no more data');
                 }
             }, dashboardHideDuration);
         }
@@ -924,7 +1113,6 @@
             
             // Reset state
             isDashboardVisible = false;
-            isDashboardCycleActive = false;
             dashboardData = null;
             
             // Ensure dashboard is hidden
@@ -958,6 +1146,15 @@
             dashboardElement.classList.remove('visible');
             dashboardElement.classList.add('hidden');
             stopDashboardCycle();
+
+            stopStatTickerRotation();
+            const statTickerEl = document.getElementById('stat-ticker');
+            if (statTickerEl) statTickerEl.classList.remove('visible');
+            statPopupQueue = [];
+            clearStatPopupTimers();
+            const statPopupEl = document.getElementById('stat-popup');
+            if (statPopupEl) statPopupEl.classList.remove('visible');
+            statPopupShowing = false;
             
             // Clear all timeouts
             if (rotationTimeout) {
